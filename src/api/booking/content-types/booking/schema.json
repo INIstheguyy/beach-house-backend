@@ -1,0 +1,109 @@
+{
+  "kind": "collectionType",
+  "collectionName": "bookings",
+  "info": {
+    "singularName": "booking",
+    "pluralName": "bookings",
+    "displayName": "Booking "
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "bookingReference": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "property": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::property.property",
+      "inversedBy": "bookings"
+    },
+    "property_owner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::property-owner.property-owner",
+      "inversedBy": "bookings"
+    },
+    "guestName": {
+      "type": "string",
+      "required": true
+    },
+    "guestEmail": {
+      "type": "email",
+      "required": true
+    },
+    "guestPhone": {
+      "type": "string",
+      "required": true
+    },
+    "numberOfGuests": {
+      "type": "integer"
+    },
+    "checkIn": {
+      "type": "datetime",
+      "required": true
+    },
+    "checkOut": {
+      "type": "date",
+      "required": true
+    },
+    "numberOfNights": {
+      "type": "integer",
+      "required": true
+    },
+    "pricePerNight": {
+      "type": "integer"
+    },
+    "totalAmount": {
+      "type": "integer"
+    },
+    "agentCommission": {
+      "type": "integer"
+    },
+    "propertyOwnerAmount": {
+      "type": "biginteger"
+    },
+    "paymentStatus": {
+      "type": "enumeration",
+      "default": "pending",
+      "enum": [
+        "pending",
+        "completed",
+        "failed",
+        "refunded"
+      ]
+    },
+    "flutterwaveTransactionId": {
+      "type": "string"
+    },
+    "flutterwaveReference": {
+      "type": "string"
+    },
+    "paidAt": {
+      "type": "datetime"
+    },
+    "bookingStatus": {
+      "type": "enumeration",
+      "default": "pending",
+      "enum": [
+        "pending",
+        "confirmed",
+        "cancelled",
+        "completed"
+      ]
+    },
+    "specialRequests": {
+      "type": "text"
+    },
+    "blocked_date": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::blocked-date.blocked-date",
+      "mappedBy": "booking"
+    }
+  }
+}

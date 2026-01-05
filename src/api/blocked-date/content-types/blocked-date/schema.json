@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "blocked_dates",
+  "info": {
+    "singularName": "blocked-date",
+    "pluralName": "blocked-dates",
+    "displayName": "BlockedDate "
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "property": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::property.property",
+      "inversedBy": "blocked_date"
+    },
+    "startDate": {
+      "type": "date",
+      "required": true
+    },
+    "endDate": {
+      "type": "date",
+      "required": true
+    },
+    "reason": {
+      "type": "enumeration",
+      "enum": [
+        "booked",
+        "maintenance",
+        "owner-use",
+        "manual-block"
+      ]
+    },
+    "booking": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::booking.booking",
+      "inversedBy": "blocked_date"
+    },
+    "notes": {
+      "type": "text"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "kind": "singleType",
+  "collectionName": "site_settings",
+  "info": {
+    "singularName": "site-setting",
+    "pluralName": "site-settings",
+    "displayName": "SiteSetting "
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "siteName": {
+      "type": "string",
+      "default": "Lagos Beach Rentals"
+    },
+    "contactEmail": {
+      "type": "email"
+    },
+    "contactPhone": {
+      "type": "string"
+    },
+    "whatsappNumber": {
+      "type": "string"
+    },
+    "agentCommissionDefault": {
+      "type": "decimal",
+      "default": 20
+    },
+    "flutterwavePublicKey": {
+      "type": "string"
+    },
+    "flutterwaveSecretKey": {
+      "type": "string"
+    },
+    "agentFlutterwaveAccount": {
+      "type": "string"
+    },
+    "heroImages": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "aboutText": {
+      "type": "blocks"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "kind": "collectionType",
+  "collectionName": "property_owners",
+  "info": {
+    "singularName": "property-owner",
+    "pluralName": "property-owners",
+    "displayName": "PropertyOwner "
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "email": {
+      "type": "email",
+      "required": true,
+      "unique": true
+    },
+    "phone": {
+      "type": "string",
+      "required": true
+    },
+    "bankDetails": {
+      "type": "json"
+    },
+    "flutterwaveSubaccount": {
+      "type": "string"
+    },
+    "totalEarnings": {
+      "type": "decimal",
+      "default": 0
+    },
+    "properties": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::property.property",
+      "mappedBy": "property_owner"
+    },
+    "bookings": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::booking.booking",
+      "mappedBy": "property_owner"
+    }
+  }
+}

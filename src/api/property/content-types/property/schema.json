@@ -1,0 +1,111 @@
+{
+  "kind": "collectionType",
+  "collectionName": "properties",
+  "info": {
+    "singularName": "property",
+    "pluralName": "properties",
+    "displayName": "Property"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true
+    },
+    "description": {
+      "type": "richtext",
+      "required": true
+    },
+    "location": {
+      "type": "string",
+      "required": true
+    },
+    "propertyType": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "Beach House",
+        "Apartment",
+        "Other-Services"
+      ]
+    },
+    "pricePerNight": {
+      "type": "biginteger",
+      "required": true
+    },
+    "Number": {
+      "type": "integer",
+      "required": true
+    },
+    "bedrooms": {
+      "type": "integer",
+      "required": true
+    },
+    "bathrooms": {
+      "type": "integer",
+      "required": false
+    },
+    "amenities": {
+      "type": "json"
+    },
+    "photos": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "featuredPhoto": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "icalUrl": {
+      "type": "string"
+    },
+    "flutterwaveSubaccount": {
+      "type": "string"
+    },
+    "commissionRate": {
+      "type": "decimal"
+    },
+    "isActive": {
+      "type": "boolean"
+    },
+    "property_owner": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::property-owner.property-owner",
+      "inversedBy": "properties"
+    },
+    "bookings": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::booking.booking",
+      "mappedBy": "property"
+    },
+    "blocked_date": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::blocked-date.blocked-date",
+      "mappedBy": "property"
+    }
+  }
+}
