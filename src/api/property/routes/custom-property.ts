@@ -2,7 +2,7 @@
  * custom property routes
  */
 
-export default {
+module.exports =  {
   routes: [
     {
       method: 'GET',
