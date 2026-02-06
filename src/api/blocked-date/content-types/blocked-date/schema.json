@@ -13,9 +13,9 @@
   "attributes": {
     "property": {
       "type": "relation",
-      "relation": "oneToOne",
+      "relation": "manyToOne",
       "target": "api::property.property",
-      "inversedBy": "blocked_date"
+      "inversedBy": "blocked_dates"
     },
     "startDate": {
       "type": "date",

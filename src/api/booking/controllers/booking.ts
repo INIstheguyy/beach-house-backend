@@ -38,31 +38,44 @@ export default factories.createCoreController(
       }
 
       try {
-        // Check availability
-        const blockedDates = await strapi.entityService.findMany(
-          "api::blocked-date.blocked-date",
-          {
-            filters: {
-              property: propertyId,
-              startDate: { $lte: checkOut },
-              endDate: { $gte: checkIn },
-            },
-          }
-        );
-
-        if (blockedDates.length > 0) {
-          return ctx.badRequest("Property not available for selected dates");
-        }
-
-        // Get property details
+        // Get property details first
+        // (propertyId could be documentId from frontend, fetch to get numeric ID)
         const property: any = await strapi.entityService.findOne(
           "api::property.property",
           propertyId,
-          { populate: ["property_owner"] }
+          { populate: ["property_owner"] },
         );
 
         if (!property) {
           return ctx.notFound("Property not found");
+        }
+
+        console.log(
+          `Property lookup in booking: input=${propertyId}, numeric id=${property.id}`,
+        );
+
+        // Check availability using numeric property.id for relation filter
+        const blockedDates = await strapi.entityService.findMany(
+          "api::blocked-date.blocked-date",
+          {
+            filters: {
+              property: property.id,
+              $and: [
+                {
+                  // Blocked period starts before (not on) our checkout date
+                  startDate: { $lt: checkOut },
+                },
+                {
+                  // Blocked period ends after (not on) our checkin date
+                  endDate: { $gt: checkIn },
+                },
+              ],
+            },
+          },
+        );
+
+        if (blockedDates.length > 0) {
+          return ctx.badRequest("Property not available for selected dates");
         }
 
         if (!property.isActive) {
@@ -72,12 +85,12 @@ export default factories.createCoreController(
         // Calculate pricing
         const nights = Math.ceil(
           (checkOutDate.getTime() - checkInDate.getTime()) /
-            (1000 * 60 * 60 * 24)
+            (1000 * 60 * 60 * 24),
         );
         const totalAmount = nights * property.pricePerNight;
         const commissionRate = property.commissionRate || 20; // default 20%
         const agentCommission = Math.round(
-          (totalAmount * commissionRate) / 100
+          (totalAmount * commissionRate) / 100,
         );
         const ownerAmount = totalAmount - agentCommission;
 
@@ -87,12 +100,13 @@ export default factories.createCoreController(
         const bookingRef = `LBR-${timestamp}-${randomStr}`;
 
         // Create pending booking
+        // Use numeric property.id for relations
         const booking: any = await strapi.entityService.create(
           "api::booking.booking",
           {
             data: {
               bookingReference: bookingRef,
-              property: propertyId,
+              property: property.id,
               property_owner: property.property_owner?.id,
               guestName: guestDetails.name,
               guestEmail: guestDetails.email,
@@ -109,7 +123,7 @@ export default factories.createCoreController(
               bookingStatus: "pending",
               specialRequests: guestDetails.specialRequests || "",
             },
-          }
+          },
         );
 
         // Initialize Flutterwave payment
@@ -131,7 +145,7 @@ export default factories.createCoreController(
           },
           meta: {
             booking_id: booking.id,
-            property_id: propertyId,
+            property_id: property.id, // Store numeric ID for payment verification
           },
         };
 
@@ -155,7 +169,7 @@ export default factories.createCoreController(
                 Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
                 "Content-Type": "application/json",
               },
-            }
+            },
           );
 
           return {
@@ -170,7 +184,7 @@ export default factories.createCoreController(
 
           strapi.log.error(
             "Flutterwave initialization failed:",
-            error.response?.data || error.message
+            error.response?.data || error.message,
           );
           return ctx.internalServerError("Payment initialization failed");
         }
@@ -200,7 +214,7 @@ export default factories.createCoreController(
             headers: {
               Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
             },
-          }
+          },
         );
 
         const paymentData = response.data.data;
@@ -217,7 +231,7 @@ export default factories.createCoreController(
             {
               filters: { bookingReference: txRefStr },
               populate: ["property", "property_owner"],
-            }
+            },
           );
 
           console.log("Found bookings:", bookings); // Debug log
@@ -233,7 +247,7 @@ export default factories.createCoreController(
           // Check if already confirmed (prevent double processing)
           if (booking.paymentStatus === "completed") {
             console.log(
-              "Booking already confirmed, returning existing booking"
+              "Booking already confirmed, returning existing booking",
             );
             // Still return the booking with proper structure
             const existingBooking = await strapi.entityService.findOne(
@@ -241,7 +255,7 @@ export default factories.createCoreController(
               booking.id,
               {
                 populate: ["property", "property_owner"],
-              }
+              },
             );
             return {
               success: true,
@@ -262,7 +276,7 @@ export default factories.createCoreController(
                 paidAt: new Date().toISOString(),
               },
               populate: ["property", "property_owner"],
-            }
+            },
           );
 
           console.log("Updated booking:", updatedBooking); // Debug log
@@ -284,7 +298,7 @@ export default factories.createCoreController(
             propertyId = parseInt(paymentData.meta.property_id);
             console.log(
               "Using property ID from Flutterwave metadata:",
-              propertyId
+              propertyId,
             );
           }
 
@@ -293,7 +307,7 @@ export default factories.createCoreController(
           if (!propertyId) {
             strapi.log.error(
               "Could not determine property ID from booking:",
-              booking
+              booking,
             );
             strapi.log.error("Flutterwave meta:", paymentData.meta);
             return ctx.internalServerError("Failed to determine property ID");
@@ -302,27 +316,23 @@ export default factories.createCoreController(
           // Block the dates
 
           try {
-            // Ensure dates are in correct format (YYYY-MM-DD)
-            const checkInDateOnly = booking.checkIn.split("T")[0]; // Remove time if present
-            const checkOutDateOnly = booking.checkOut.split("T")[0];
-
             const blockedDate = await strapi.entityService.create(
               "api::blocked-date.blocked-date",
               {
                 data: {
                   property: propertyId,
-                  startDate: checkInDateOnly,
-                  endDate: checkOutDateOnly,
+                  startDate: booking.checkIn,
+                  endDate: booking.checkOut,
                   reason: "booked",
                   booking: booking.id,
                   notes: `Booked by ${booking.guestName}`,
                 },
-              }
+              },
             );
 
             console.log("Blocked date created:", blockedDate);
             console.log(
-              `  Blocking: ${checkInDateOnly} to ${checkOutDateOnly}`
+              `  Blocking: ${booking.checkIn} to ${booking.checkOut}`,
             );
           } catch (blockError: any) {
             strapi.log.error("Failed to create blocked date:", blockError);
@@ -340,11 +350,11 @@ export default factories.createCoreController(
       } catch (error: any) {
         strapi.log.error(
           "Payment verification error:",
-          error.response?.data || error.message
+          error.response?.data || error.message,
         );
         console.error("Full error:", error); // Debug log
         return ctx.internalServerError("Payment verification failed");
       }
     },
-  })
+  }),
 );

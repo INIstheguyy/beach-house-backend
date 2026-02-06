@@ -453,7 +453,7 @@ export interface ApiBlockedDateBlockedDate extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     notes: Schema.Attribute.Text;
-    property: Schema.Attribute.Relation<'oneToOne', 'api::property.property'>;
+    property: Schema.Attribute.Relation<'manyToOne', 'api::property.property'>;
     publishedAt: Schema.Attribute.DateTime;
     reason: Schema.Attribute.Enumeration<
       ['booked', 'maintenance', 'owner-use', 'manual-block']
@@ -488,7 +488,7 @@ export interface ApiBookingBooking extends Struct.CollectionTypeSchema {
       ['pending', 'confirmed', 'cancelled', 'completed']
     > &
       Schema.Attribute.DefaultTo<'pending'>;
-    checkIn: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    checkIn: Schema.Attribute.Date & Schema.Attribute.Required;
     checkOut: Schema.Attribute.Date & Schema.Attribute.Required;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -582,8 +582,8 @@ export interface ApiPropertyProperty extends Struct.CollectionTypeSchema {
     amenities: Schema.Attribute.JSON;
     bathrooms: Schema.Attribute.Integer;
     bedrooms: Schema.Attribute.Integer & Schema.Attribute.Required;
-    blocked_date: Schema.Attribute.Relation<
-      'oneToOne',
+    blocked_dates: Schema.Attribute.Relation<
+      'oneToMany',
       'api::blocked-date.blocked-date'
     >;
     bookings: Schema.Attribute.Relation<'oneToMany', 'api::booking.booking'>;

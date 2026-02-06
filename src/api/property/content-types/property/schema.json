@@ -101,9 +101,9 @@
       "target": "api::booking.booking",
       "mappedBy": "property"
     },
-    "blocked_date": {
+    "blocked_dates": {
       "type": "relation",
-      "relation": "oneToOne",
+      "relation": "oneToMany",
       "target": "api::blocked-date.blocked-date",
       "mappedBy": "property"
     }
