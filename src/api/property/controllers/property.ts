@@ -103,5 +103,27 @@ export default factories.createCoreController(
         return ctx.internalServerError("Failed to check availability");
       }
     },
+
+    async syncIcal(ctx) {
+      const { id } = ctx.params; // Property documentId or numeric id
+
+      try {
+        const icalService = strapi.service("api::property.ical");
+        const result = await icalService.syncProperty(id);
+
+        return result;
+      } catch (error: any) {
+        if (error.message === "Property not found") {
+          return ctx.notFound("Property not found");
+        }
+        if (error.message === "Property does not have an iCal URL configured") {
+          return ctx.badRequest(
+            "Property does not have an iCal URL configured",
+          );
+        }
+        strapi.log.error("iCal sync failed:", error);
+        return ctx.internalServerError(`iCal sync failed: ${error.message}`);
+      }
+    },
   }),
 );

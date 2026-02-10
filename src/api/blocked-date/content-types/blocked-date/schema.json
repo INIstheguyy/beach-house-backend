@@ -29,10 +29,17 @@
       "type": "enumeration",
       "enum": [
         "booked",
+        "external-booking",
         "maintenance",
         "owner-use",
         "manual-block"
       ]
+    },
+    "externalId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
     },
     "booking": {
       "type": "relation",

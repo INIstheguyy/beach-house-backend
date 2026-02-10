@@ -446,6 +446,7 @@ export interface ApiBlockedDateBlockedDate extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     endDate: Schema.Attribute.Date & Schema.Attribute.Required;
+    externalId: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -456,8 +457,9 @@ export interface ApiBlockedDateBlockedDate extends Struct.CollectionTypeSchema {
     property: Schema.Attribute.Relation<'manyToOne', 'api::property.property'>;
     publishedAt: Schema.Attribute.DateTime;
     reason: Schema.Attribute.Enumeration<
-      ['booked', 'maintenance', 'owner-use', 'manual-block']
+      ['booked', 'external-booking', 'maintenance', 'owner-use', 'manual-block']
     >;
+    source: Schema.Attribute.String;
     startDate: Schema.Attribute.Date & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
