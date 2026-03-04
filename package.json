@@ -23,6 +23,7 @@
     "better-sqlite3": "12.4.1",
     "node-cron": "^4.2.1",
     "node-ical": "^0.25.1",
+    "pg": "^8.19.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
