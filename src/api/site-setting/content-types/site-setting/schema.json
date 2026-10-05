@@ -31,9 +31,6 @@
     "flutterwavePublicKey": {
       "type": "string"
     },
-    "flutterwaveSecretKey": {
-      "type": "string"
-    },
     "agentFlutterwaveAccount": {
       "type": "string"
     },

@@ -14,10 +14,18 @@ module.exports = {
     },
     {
       method: "POST",
+      path: "/properties/sync-ical",
+      handler: "property.syncAllIcal",
+      config: {
+        auth: false, // Controller requires the ICAL_SYNC_SECRET bearer token.
+      },
+    },
+    {
+      method: "POST",
       path: "/properties/:id/sync-ical",
       handler: "property.syncIcal",
       config: {
-        auth: false, // Change to true with proper auth in production
+        auth: false, // Controller requires the ICAL_SYNC_SECRET bearer token.
       },
     },
   ],

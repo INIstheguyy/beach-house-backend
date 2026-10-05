@@ -16,5 +16,13 @@ module.exports = {
         auth: false,
       },
     },
+    {
+      method: "POST",
+      path: "/bookings/webhook",
+      handler: "api::booking.booking.handleFlutterwaveWebhook",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

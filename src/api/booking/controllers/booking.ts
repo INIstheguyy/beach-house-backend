@@ -4,6 +4,7 @@
 
 import { factories } from "@strapi/strapi";
 import axios from "axios";
+import { parseDateOnly, todayInTimeZone } from "../../../utils/date-only";
 
 export default factories.createCoreController(
   "api::booking.booking",
@@ -21,19 +22,24 @@ export default factories.createCoreController(
         return ctx.badRequest("Guest details incomplete");
       }
 
-      // Validate dates
-      const checkInDate = new Date(checkIn);
-      const checkOutDate = new Date(checkOut);
+      const requestedGuestCount = Number(guestDetails.numberOfGuests || 1);
+      if (!Number.isInteger(requestedGuestCount) || requestedGuestCount < 1) {
+        return ctx.badRequest("numberOfGuests must be a positive whole number");
+      }
 
-      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-        return ctx.badRequest("Invalid date format");
+      // Validate dates
+      const checkInDate = parseDateOnly(checkIn);
+      const checkOutDate = parseDateOnly(checkOut);
+
+      if (!checkInDate || !checkOutDate) {
+        return ctx.badRequest("Invalid date format. Use YYYY-MM-DD");
       }
 
       if (checkInDate >= checkOutDate) {
         return ctx.badRequest("Check-out must be after check-in");
       }
 
-      if (checkInDate < new Date()) {
+      if (checkInDate < todayInTimeZone(process.env.BUSINESS_TIMEZONE)) {
         return ctx.badRequest("Check-in cannot be in the past");
       }
 
@@ -49,10 +55,6 @@ export default factories.createCoreController(
         if (!property) {
           return ctx.notFound("Property not found");
         }
-
-        console.log(
-          `Property lookup in booking: input=${propertyId}, numeric id=${property.id}`,
-        );
 
         // Check availability using numeric property.id for relation filter
         const blockedDates = await strapi.entityService.findMany(
@@ -80,6 +82,18 @@ export default factories.createCoreController(
 
         if (!property.isActive) {
           return ctx.badRequest("Property is not available");
+        }
+
+        const maximumGuests = Number(property.Number ?? property.maxGuests);
+        if (Number.isFinite(maximumGuests) && requestedGuestCount > maximumGuests) {
+          return ctx.badRequest(
+            `This property accommodates a maximum of ${maximumGuests} guests`,
+          );
+        }
+
+        if (!process.env.FLUTTERWAVE_SECRET_KEY) {
+          strapi.log.error("FLUTTERWAVE_SECRET_KEY is not configured");
+          return ctx.internalServerError("Payment service is not configured");
         }
 
         // Calculate pricing
@@ -111,7 +125,7 @@ export default factories.createCoreController(
               guestName: guestDetails.name,
               guestEmail: guestDetails.email,
               guestPhone: guestDetails.phone,
-              numberOfGuests: guestDetails.numberOfGuests || 1,
+              numberOfGuests: requestedGuestCount,
               checkIn,
               checkOut,
               numberOfNights: nights,
@@ -219,8 +233,6 @@ export default factories.createCoreController(
 
         const paymentData = response.data.data;
 
-        console.log("Flutterwave payment data:", paymentData); // Debug log
-
         if (
           paymentData.status === "successful" &&
           paymentData.tx_ref === txRefStr
@@ -234,21 +246,48 @@ export default factories.createCoreController(
             },
           );
 
-          console.log("Found bookings:", bookings); // Debug log
-
           if (bookings.length === 0) {
             return ctx.notFound("Booking not found");
           }
 
           const booking = bookings[0];
 
-          console.log("Booking object:", booking); // Debug log
+          const expectedAmount = Number(booking.totalAmount);
+          if (
+            paymentData.currency !== "NGN" ||
+            !Number.isFinite(Number(paymentData.amount)) ||
+            Number(paymentData.amount) < expectedAmount
+          ) {
+            strapi.log.warn("Flutterwave verification rejected due to amount or currency mismatch", {
+              bookingReference: txRefStr,
+              expectedAmount,
+              receivedAmount: paymentData.amount,
+              receivedCurrency: paymentData.currency,
+            });
+            return ctx.badRequest("Payment amount or currency verification failed");
+          }
+
+          const transactionMatches: any = await strapi.entityService.findMany(
+            "api::booking.booking",
+            {
+              filters: { flutterwaveTransactionId: transactionIdStr },
+            },
+          );
+
+          if (
+            transactionMatches.some(
+              (matchedBooking: any) => matchedBooking.id !== booking.id,
+            )
+          ) {
+            strapi.log.warn("Flutterwave transaction ID was reused", {
+              bookingReference: txRefStr,
+              transactionId: transactionIdStr,
+            });
+            return ctx.badRequest("Payment transaction has already been used");
+          }
 
           // Check if already confirmed (prevent double processing)
           if (booking.paymentStatus === "completed") {
-            console.log(
-              "Booking already confirmed, returning existing booking",
-            );
             // Still return the booking with proper structure
             const existingBooking = await strapi.entityService.findOne(
               "api::booking.booking",
@@ -279,8 +318,6 @@ export default factories.createCoreController(
             },
           );
 
-          console.log("Updated booking:", updatedBooking); // Debug log
-
           // Get the property ID - try multiple sources
           let propertyId;
 
@@ -296,13 +333,7 @@ export default factories.createCoreController(
           // If still not found, try from Flutterwave metadata
           if (!propertyId && paymentData.meta?.property_id) {
             propertyId = parseInt(paymentData.meta.property_id);
-            console.log(
-              "Using property ID from Flutterwave metadata:",
-              propertyId,
-            );
           }
-
-          console.log("Property ID to block:", propertyId); // Debug log
 
           if (!propertyId) {
             strapi.log.error(
@@ -330,10 +361,6 @@ export default factories.createCoreController(
               },
             );
 
-            console.log("Blocked date created:", blockedDate);
-            console.log(
-              `  Blocking: ${booking.checkIn} to ${booking.checkOut}`,
-            );
           } catch (blockError: any) {
             strapi.log.error("Failed to create blocked date:", blockError);
             // Don't fail the whole request, booking is still confirmed
@@ -344,7 +371,10 @@ export default factories.createCoreController(
             booking: updatedBooking,
           };
         } else {
-          console.log("Payment verification failed:", paymentData);
+          strapi.log.warn("Flutterwave payment verification rejected", {
+            bookingReference: txRefStr,
+            status: paymentData?.status,
+          });
           return ctx.badRequest("Payment verification failed");
         }
       } catch (error: any) {
@@ -352,8 +382,127 @@ export default factories.createCoreController(
           "Payment verification error:",
           error.response?.data || error.message,
         );
-        console.error("Full error:", error); // Debug log
         return ctx.internalServerError("Payment verification failed");
+      }
+    },
+
+    async handleFlutterwaveWebhook(ctx) {
+      const expectedSignature = process.env.FLUTTERWAVE_WEBHOOK_SECRET;
+      const signature = ctx.get("verif-hash");
+
+      if (!expectedSignature || signature !== expectedSignature) {
+        return ctx.unauthorized("Invalid webhook signature");
+      }
+
+      const payload: any = ctx.request.body;
+      const transactionId = payload?.data?.id;
+      const txRef = payload?.data?.tx_ref;
+
+      if (
+        payload?.event !== "charge.completed" ||
+        payload?.data?.status !== "successful" ||
+        !transactionId ||
+        !txRef
+      ) {
+        ctx.body = { received: true, processed: false };
+        return;
+      }
+
+      try {
+        const providerResponse = await axios.get(
+          `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+            },
+          },
+        );
+        const payment = providerResponse.data.data;
+        const bookings: any = await strapi.entityService.findMany(
+          "api::booking.booking",
+          {
+            filters: { bookingReference: String(txRef) },
+            populate: ["property", "property_owner"],
+          },
+        );
+        const booking = bookings[0];
+
+        if (!booking) {
+          strapi.log.warn("Webhook referenced an unknown booking", {
+            bookingReference: String(txRef),
+          });
+          ctx.body = { received: true, processed: false };
+          return;
+        }
+
+        const isVerified =
+          payment?.status === "successful" &&
+          payment?.tx_ref === booking.bookingReference &&
+          payment?.currency === "NGN" &&
+          Number(payment?.amount) >= Number(booking.totalAmount);
+
+        if (!isVerified) {
+          strapi.log.warn("Webhook payment verification failed", {
+            bookingReference: booking.bookingReference,
+          });
+          ctx.body = { received: true, processed: false };
+          return;
+        }
+
+        if (booking.paymentStatus === "completed") {
+          ctx.body = { received: true, processed: false, duplicate: true };
+          return;
+        }
+
+        const existingTransaction: any = await strapi.entityService.findMany(
+          "api::booking.booking",
+          { filters: { flutterwaveTransactionId: String(transactionId) } },
+        );
+        if (
+          existingTransaction.some(
+            (existingBooking: any) => existingBooking.id !== booking.id,
+          )
+        ) {
+          strapi.log.error("Webhook transaction ID was already used", {
+            transactionId: String(transactionId),
+          });
+          ctx.status = 409;
+          ctx.body = { received: true, processed: false };
+          return;
+        }
+
+        const propertyId = booking.property?.id;
+        if (!propertyId) {
+          throw new Error("Booking is missing its property relation");
+        }
+
+        await strapi.entityService.create("api::blocked-date.blocked-date", {
+          data: {
+            property: propertyId,
+            startDate: booking.checkIn,
+            endDate: booking.checkOut,
+            reason: "booked",
+            booking: booking.id,
+            notes: `Booked by ${booking.guestName}`,
+          },
+        });
+
+        await strapi.entityService.update("api::booking.booking", booking.id, {
+          data: {
+            paymentStatus: "completed",
+            bookingStatus: "confirmed",
+            flutterwaveTransactionId: String(transactionId),
+            flutterwaveReference: booking.bookingReference,
+            paidAt: new Date().toISOString(),
+          },
+        });
+
+        ctx.body = { received: true, processed: true };
+      } catch (error: any) {
+        strapi.log.error("Flutterwave webhook processing failed", {
+          message: error.response?.data || error.message,
+        });
+        return ctx.internalServerError("Webhook processing failed");
       }
     },
   }),

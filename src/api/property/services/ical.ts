@@ -1,6 +1,10 @@
 import ical from "node-ical";
 import axios from "axios";
 
+const ICAL_TIMEOUT_MS = 10_000;
+const ICAL_MAX_BYTES = 1_000_000;
+const ICAL_MAX_EVENTS = 5_000;
+
 export default ({ strapi }) => ({
   /**
    * Fetch and parse iCal feed from URL
@@ -8,10 +12,20 @@ export default ({ strapi }) => ({
   async fetchIcalFeed(icalUrl: string) {
     try {
       const response = await axios.get(icalUrl, {
-        timeout: 10000, // 10 second timeout
+        timeout: ICAL_TIMEOUT_MS,
+        maxContentLength: ICAL_MAX_BYTES,
+        maxBodyLength: ICAL_MAX_BYTES,
+        responseType: "text",
       });
 
+      if (typeof response.data !== "string") {
+        throw new Error("iCal feed did not return text content");
+      }
+
       const events = await ical.async.parseICS(response.data);
+      if (Object.keys(events).length > ICAL_MAX_EVENTS) {
+        throw new Error(`iCal feed exceeds the ${ICAL_MAX_EVENTS} event limit`);
+      }
       return events;
     } catch (error: any) {
       throw new Error(`Failed to fetch iCal feed: ${error.message}`);
@@ -40,6 +54,10 @@ export default ({ strapi }) => ({
       // Convert to YYYY-MM-DD format
       const start = this.formatDateForStrapi(startDate);
       const end = this.formatDateForStrapi(endDate);
+
+      // A missing UID cannot be matched reliably on a retry, so skip it instead
+      // of creating duplicate external blocks on every synchronization.
+      if (!event.uid) continue;
 
       blockedDates.push({
         startDate: start,
@@ -171,6 +189,57 @@ export default ({ strapi }) => ({
         total: blockedDates.length,
       },
       lastSyncedAt: new Date().toISOString(),
+    };
+  },
+
+  /**
+   * Synchronize every active property independently. A broken remote feed must
+   * never prevent the remaining properties from being synchronized.
+   */
+  async syncAllProperties() {
+    const properties: any[] = await strapi.entityService.findMany(
+      "api::property.property",
+      {
+        filters: {
+          icalUrl: { $notNull: true },
+          isActive: true,
+        },
+        fields: ["id"],
+      },
+    );
+
+    const results: Array<{
+      propertyId: number;
+      success: boolean;
+      synced?: unknown;
+      error?: string;
+    }> = [];
+
+    for (const property of properties) {
+      try {
+        const synced = await this.syncProperty(property.id);
+        results.push({ propertyId: property.id, success: true, synced });
+      } catch (error: any) {
+        // Do not include private calendar URLs or request details in logs/results.
+        const message = error instanceof Error ? error.message : "Unknown iCal sync error";
+        strapi.log.warn(`iCal sync failed for property ${property.id}: ${message}`);
+        results.push({ propertyId: property.id, success: false, error: message });
+      }
+    }
+
+    const succeeded = results.filter((result) => result.success).length;
+    const failed = results.length - succeeded;
+    strapi.log.info(
+      `iCal sync summary: properties=${results.length}, succeeded=${succeeded}, failed=${failed}`,
+    );
+
+    return {
+      success: failed === 0,
+      total: results.length,
+      succeeded,
+      failed,
+      results,
+      completedAt: new Date().toISOString(),
     };
   },
 });

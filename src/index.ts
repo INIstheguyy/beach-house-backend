@@ -1,5 +1,4 @@
 import type { Core } from "@strapi/strapi";
-import cron from "node-cron";
 
 export default {
   /**
@@ -8,51 +7,36 @@ export default {
    *
    * This gives you an opportunity to extend code.
    */
-  register(/* { strapi }: { strapi: Core.Strapi } */) {},
+  register(/* { strapi }: { strapi: Core.Strapi } */) {
+    if (process.env.NODE_ENV !== "production") {
+      return;
+    }
 
-  /**
-   * An asynchronous bootstrap function that runs before
-   * your application gets started.
-   *
-   * This gives you an opportunity to set up your data model,
-   * run jobs, or perform some special logic.
-   */
-  async bootstrap({ strapi }: { strapi: Core.Strapi }) {
-    // Sync all properties with iCal URLs every 6 hours
-    cron.schedule("0 */6 * * *", async () => {
-      strapi.log.info("Starting scheduled iCal sync...");
+    const required = [
+      "APP_KEYS",
+      "API_TOKEN_SALT",
+      "ADMIN_JWT_SECRET",
+      "TRANSFER_TOKEN_SALT",
+      "JWT_SECRET",
+      "ENCRYPTION_KEY",
+      "FRONTEND_URL",
+      "CLD_CLOUD_NAME",
+      "CLD_API_KEY",
+      "CLD_API_SECRET",
+      "FLUTTERWAVE_SECRET_KEY",
+      "FLUTTERWAVE_WEBHOOK_SECRET",
+    ];
 
-      try {
-        const properties = await strapi.entityService.findMany(
-          "api::property.property",
-          {
-            filters: {
-              icalUrl: { $notNull: true },
-              isActive: true,
-            },
-          },
-        );
+    if (process.env.DATABASE_CLIENT === "postgres") {
+      required.push("DATABASE_URL");
+    }
 
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const property of properties) {
-          try {
-            // Call sync logic via service
-            await strapi
-              .service("api::property.ical")
-              .syncProperty(property.id);
-            successCount++;
-          } catch (error) {
-            strapi.log.error(`iCal sync failed for ${property.title}:`, error);
-            failCount++;
-          }
-        }
-      } catch (error) {
-        strapi.log.error("iCal sync cron job failed:", error);
-      }
-    });
-
-    strapi.log.info("iCal sync cron job scheduled (every 6 hours)");
+    const missing = required.filter((name) => !process.env[name]);
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required production environment variables: ${missing.join(", ")}`,
+      );
+    }
   },
+
 };

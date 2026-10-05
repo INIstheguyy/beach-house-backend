@@ -15,14 +15,12 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry"
   },
   "dependencies": {
-    "@strapi/plugin-cloud": "5.33.1",
-    "@strapi/plugin-users-permissions": "5.33.1",
-    "@strapi/provider-upload-cloudinary": "^5.38.0",
-    "@strapi/strapi": "5.33.1",
-    "@types/node-cron": "^3.0.11",
+    "@strapi/plugin-cloud": "5.54.0",
+    "@strapi/plugin-users-permissions": "5.54.0",
+    "@strapi/provider-upload-cloudinary": "5.54.0",
+    "@strapi/strapi": "5.54.0",
     "axios": "^1.13.2",
     "better-sqlite3": "12.4.1",
-    "node-cron": "^4.2.1",
     "node-ical": "^0.25.1",
     "pg": "^8.19.0",
     "react": "^18.0.0",

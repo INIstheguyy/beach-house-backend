@@ -3,6 +3,7 @@
  */
 
 import { factories } from "@strapi/strapi";
+import { parseDateOnly, todayInTimeZone } from "../../../utils/date-only";
 
 export default factories.createCoreController(
   "api::property.property",
@@ -29,10 +30,10 @@ export default factories.createCoreController(
       const checkOutStr = String(checkOut);
 
       // Validate dates
-      const checkInDate = new Date(checkInStr);
-      const checkOutDate = new Date(checkOutStr);
+      const checkInDate = parseDateOnly(checkInStr);
+      const checkOutDate = parseDateOnly(checkOutStr);
 
-      if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      if (!checkInDate || !checkOutDate) {
         return ctx.badRequest("Invalid date format. Use YYYY-MM-DD");
       }
 
@@ -40,7 +41,7 @@ export default factories.createCoreController(
         return ctx.badRequest("checkOut must be after checkIn");
       }
 
-      if (checkInDate < new Date()) {
+      if (checkInDate < todayInTimeZone(process.env.BUSINESS_TIMEZONE)) {
         return ctx.badRequest("checkIn cannot be in the past");
       }
 
@@ -106,6 +107,17 @@ export default factories.createCoreController(
 
     async syncIcal(ctx) {
       const { id } = ctx.params; // Property documentId or numeric id
+      const secret = process.env.ICAL_SYNC_SECRET;
+      const authorization = ctx.get("authorization");
+
+      if (!secret) {
+        strapi.log.error("ICAL_SYNC_SECRET is not configured");
+        return ctx.internalServerError("iCal synchronization is not configured");
+      }
+
+      if (authorization !== `Bearer ${secret}`) {
+        return ctx.unauthorized("Unauthorized iCal synchronization request");
+      }
 
       try {
         const icalService = strapi.service("api::property.ical");
@@ -123,6 +135,27 @@ export default factories.createCoreController(
         }
         strapi.log.error("iCal sync failed:", error);
         return ctx.internalServerError(`iCal sync failed: ${error.message}`);
+      }
+    },
+
+    async syncAllIcal(ctx) {
+      const secret = process.env.ICAL_SYNC_SECRET;
+      const authorization = ctx.get("authorization");
+
+      if (!secret) {
+        strapi.log.error("ICAL_SYNC_SECRET is not configured");
+        return ctx.internalServerError("iCal synchronization is not configured");
+      }
+
+      if (authorization !== `Bearer ${secret}`) {
+        return ctx.unauthorized("Unauthorized iCal synchronization request");
+      }
+
+      try {
+        return await strapi.service("api::property.ical").syncAllProperties();
+      } catch (error) {
+        strapi.log.error("iCal batch sync failed");
+        return ctx.internalServerError("iCal batch synchronization failed");
       }
     },
   }),

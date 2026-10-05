@@ -1,3 +1,8 @@
+const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 module.exports = [
   "strapi::errors",
   {
@@ -23,7 +28,7 @@ module.exports = [
   {
     name: "strapi::cors",
     config: {
-      origin: [process.env.FRONTEND_URL || "http://localhost:5173"],
+      origin: allowedOrigins,
     },
   },
   "strapi::poweredBy",
